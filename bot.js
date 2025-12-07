@@ -1,399 +1,316 @@
-/**
-
- * bot.js
-
- * Cleaned startup file + ASCII startup banner (static)
-
- *
-
- * How to use:
-
- * 1. Install dependencies used by your project (mongoose, discord.js, etc.)
-
- * 2. Ensure @root/utils/... and @src/... modules path match your repo (or update requires)
-
- * 3. Set .env with BOT_TOKEN (and DB URI if needed)
-
- * 4. node bot.js
-
- *
-
- * Optional: set USE_FIGLET = true below and install `figlet` to use a dynamic ASCII title.
-
- */
+// bot.js
+// Clean, readable startup file for "Discord System V4"
+// - Uses dotenv
+// - Uses module-alias (if you have @src etc configured)
+// - Attempts to initialize mongoose, check updates, and launch dashboard if present
+// - Loads commands/events by calling common methods or falling back to directory scanning
+// - Prints an ASCII banner (customize ASCII_BANNER below)
 
 'use strict';
 
-// Toggle: if true, uses figlet to produce a dynamic big title instead of the static block
+// Basic setup
+require('dotenv').config();                 // load .env
+// If you use module-alias (recommended), ensure it's configured in package.json or use:
+//   "moduleAliases": { "@src": "src", "@root": "." }
+// and call:
+// require('module-alias/register');
+try {
+  // try to register module-alias if available (optional)
+  require('module-alias/register');
+} catch (err) {
+  // not required — only used if your project configured aliases
+}
 
-const USE_FIGLET = false;
+// ---------- CUSTOM ASCII BANNER (edit this string) ----------
+const ASCII_BANNER = `
+██████╗ ██╗ ██████╗ ████████╗ ██████╗  ██████╗ 
+██╔══██╗██║██╔═══██╗╚══██╔══╝██╔═══██╗██╔════╝ 
+██████╔╝██║██║   ██║   ██║   ██║   ██║██║  ███╗
+██╔══██╗██║██║   ██║   ██║   ██║   ██║██║   ██║
+██║  ██║██║╚██████╔╝   ██║   ╚██████╔╝╚██████╔╝
+╚═╝  ╚═╝╚═╝ ╚═════╝    ╚═╝    ╚═════╝  ╚═════╝ 
+          Discord System V4 — Dashboard Enabled
+`;
+// ----------------------------------------------------------------
 
-// --- Core startup / environment ---
-
-require('dotenv').config(); // load .env
-
-// NOTE: Replace these paths with the real paths from your project.
-
+const fs = require('fs');
 const path = require('path');
 
-// Example internal requires (adjust these to your actual files)
-
-let checkForUpdates;
-
-let initializeMongoose;
-
-let BotClient;
-
-let validateConfiguration;
-
-try {
-
-  // these are the likely modules inferred from your obfuscated file
-
-  checkForUpdates = require('@root/utils/botUtils').checkForUpdates;
-
-} catch (e) {
-
-  // fallback: dummy function so file doesn't throw if module paths differ
-
-  checkForUpdates = async () => {};
-
-}
-
-try {
-
-  initializeMongoose = require('@root/utils/database/mongoose').initializeMongoose;
-
-} catch (e) {
-
-  initializeMongoose = async () => {};
-
-}
-
-try {
-
-  BotClient = require('@src/core/BotClient').BotClient;
-
-} catch (e) {
-
-  // Provide a minimal fallback BotClient so devs can still run the file without the real class.
-
-  class MinimalBotClient {
-
-    constructor() {
-
-      this.config = { DASHBOARD: { enabled: false } };
-
-      this.logger = {
-
-        log: console.log.bind(console),
-
-        error: console.error.bind(console)
-
-      };
-
-    }
-
-    loadCommands() {}
-
-    loadCommandTests() {}
-
-    loadEvents() {}
-
-    async login(token) {
-
-      if (!token) throw new Error('Missing token');
-
-      this.logger.log('Pretend login with token:', token.slice ? (token.slice(0, 6) + '...') : token);
-
-      // In real client, call discord.Client.login(token)
-
-    }
-
-  }
-
-  BotClient = MinimalBotClient;
-
-}
-
-try {
-
-  validateConfiguration = require('@root/utils/validateConfiguration').validateConfiguration;
-
-} catch (e) {
-
-  // no-op validate if missing
-
-  validateConfiguration = () => {};
-
-}
-
-// --- ASCII banner definitions ---
-
-// Static block inspired by the screenshot. Customize text below as needed.
-
-const STATIC_ASCII_BANNER = `
-
- ██████╗ ██████╗  ██████╗ ██╗  ██╗███████╗██╗  ██╗██╗  ██╗
-
-██╔════╝██╔═══██╗██╔═══██╗██║ ██╔╝██╔════╝██║ ██╔╝██║ ██╔╝
-
-██║     ██║   ██║██║   ██║█████╔╝ █████╗  █████╔╝ █████╔╝ 
-
-██║     ██║   ██║██║   ██║██╔═██╗ ██╔══╝  ██╔═██╗ ██╔═██╗ 
-
-╚██████╗╚██████╔╝╚██████╔╝██║  ██╗███████╗██║  ██╗██║  ██╗
-
- ╚═════╝ ╚═════╝  ╚═════╝ ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝
-
-╔════════════════════════════════════════════════════════════╗
-
-║                                                            ║
-
-║   Developer: Shaad You                                      ║
-
-║   Support:   https://discord.gg/mFEehCPKEW                  ║
-
-║   Made By:   Code Nexus                                     ║
-
-║                                                            ║
-
-╚════════════════════════════════════════════════════════════╝
-
-`;
-
-// Optionally use figlet for dynamic title
-
-async function printStartupBanner() {
-
-  if (USE_FIGLET) {
-
-    try {
-
-      const figlet = require('figlet'); // npm i figlet
-
-      const titleText = figlet.textSync('MAD NEXUS', { font: 'Big' });
-
-      console.log('\n' + '='.repeat(70) + '\n');
-
-      console.log(titleText);
-
-      console.log('\n🔹 Developer: Shaad You');
-
-      console.log('🔹 Support: https://discord.gg/mFEehCPKEW');
-
-      console.log('🔹 Made By Code Nexus\n');
-
-      console.log('='.repeat(70) + '\n');
-
-      return;
-
-    } catch (err) {
-
-      // If figlet not available, fallback to static
-
-      console.warn('figlet not installed or failed to run, using static banner. Install figlet with `npm i figlet` to enable it.');
-
-      console.log(STATIC_ASCII_BANNER);
-
-      return;
-
-    }
-
-  } else {
-
-    console.log(STATIC_ASCII_BANNER);
-
-  }
-
-}
-
-// --- Main bot startup (clean, readable version of your obfuscated flow) ---
+const log = {
+  info: (...args) => console.log('[INFO]', ...args),
+  warn: (...args) => console.warn('[WARN]', ...args),
+  error: (...args) => console.error('[ERROR]', ...args),
+};
 
 (async () => {
+  console.log(ASCII_BANNER);
 
-  // Print the banner first
-
-  await printStartupBanner();
-
-  // validate configuration (throws if invalid)
-
+  // Try to require optional utilities -- fail gracefully with messages
+  let checkForUpdates = null;
   try {
-
-    validateConfiguration();
-
-  } catch (err) {
-
-    console.error('Configuration validation failed:', err);
-
-    process.exit(1);
-
+    // example: @root/utils/botUtils or ./dashboard/utils/botUtils
+    checkForUpdates = require('./dashboard/utils/checkForUpdates').checkForUpdates
+      || require('@root/utils/botUtils').checkForUpdates;
+  } catch (e) {
+    // optional
   }
 
-  // Create bot client
-
-  const client = new BotClient();
-
-  // Provide safe checks for methods that existed in your original
-
-  if (typeof client.loadCommands === 'function') {
-
-    try {
-
-      client.loadCommands('commands'); // adapt path as needed
-
-    } catch (err) {
-
-      client.logger && client.logger.error && client.logger.error('Failed to load commands:', err);
-
-    }
-
+  let initializeMongoose = null;
+  try {
+    initializeMongoose = require('./src/database/mongoose').initializeMongoose
+      || require('@root/database/mongoose').initializeMongoose;
+  } catch (e) {
+    // optional
   }
 
-  if (typeof client.loadCommandTests === 'function') {
-
-    try {
-
-      client.loadCommandTests('commands/tests'); // optional
-
-    } catch (err) {
-
-      client.logger && client.logger.error && client.logger.error('Failed to load command tests:', err);
-
-    }
-
+  let validateConfiguration = null;
+  try {
+    validateConfiguration = require('./config').validateConfiguration
+      || require('./src/config/validateConfiguration').validateConfiguration
+      || require('@root/validation/validateConfiguration').validateConfiguration;
+  } catch (e) {
+    // optional
   }
 
-  if (typeof client.loadEvents === 'function') {
-
+  // Your BotClient implementation (should live in src/client/BotClient.js or similar)
+  let BotClient = null;
+  try {
+    BotClient = require('./src/client/BotClient').BotClient
+      || require('@src/client/BotClient').BotClient;
+  } catch (e) {
+    log.error('Could not require BotClient from src/client/BotClient. Make sure the file exists and exports { BotClient }.');
+    // To avoid crash, provide a minimal fallback that uses discord.js Client (only for safety)
     try {
-
-      client.loadEvents('src/events');
-
-    } catch (err) {
-
-      client.logger && client.logger.error && client.logger.error('Failed to load events:', err);
-
-    }
-
-  }
-
-  // Global unhandledRejection logging
-
-  process.on('unhandledRejection', (err) => {
-
-    try {
-
-      if (client && client.logger && typeof client.logger.error === 'function') {
-
-        client.logger.error('unhandledRejection', err);
-
-      } else {
-
-        console.error('unhandledRejection', err);
-
+      const { Client, Intents } = require('discord.js');
+      class FallbackClient extends Client {
+        constructor(opts = {}) { super({ intents: Object.values(Intents.FLAGS) }); }
+        async loadCommands() { /* noop fallback */ }
+        async loadEvents() { /* noop fallback */ }
       }
-
-    } catch (e) {
-
-      console.error('Error logging unhandledRejection:', e);
-
+      BotClient = { BotClient: FallbackClient }.BotClient;
+      log.warn('Using fallback BotClient (discord.js Client). Replace with your actual BotClient implementation.');
+    } catch (err) {
+      log.error('discord.js not installed. Install discord.js or provide your BotClient implementation.');
+      process.exit(1);
     }
+  }
 
+  // Validate configuration if validator exists
+  try {
+    if (typeof validateConfiguration === 'function') {
+      validateConfiguration();
+      log.info('Configuration validated.');
+    } else {
+      log.info('No configuration validator found (optional).');
+    }
+  } catch (err) {
+    log.error('Configuration validation failed:', err);
+    // depending on preference, you might exit here:
+    // process.exit(1);
+  }
+
+  // Run update check if available
+  try {
+    if (typeof checkForUpdates === 'function') {
+      await checkForUpdates();
+      log.info('Update check complete.');
+    } else {
+      log.info('No update checker found (optional).');
+    }
+  } catch (err) {
+    log.warn('Error while checking for updates (continuing):', err);
+  }
+
+  // Initialize mongoose (if available)
+  try {
+    if (typeof initializeMongoose === 'function') {
+      await initializeMongoose();
+      log.info('Mongoose initialized.');
+    } else {
+      log.info('No mongoose initializer found (skipping DB init).');
+    }
+  } catch (err) {
+    log.warn('Failed to initialize mongoose (continuing):', err);
+  }
+
+  // Create the client instance
+  const client = new BotClient(); // assume constructor takes (options) or none
+
+  // Attach basic error handlers
+  process.on('unhandledRejection', (reason, p) => {
+    client?.logger?.error?.('Unhandled Rejection:', reason) || log.error('Unhandled Rejection:', reason);
+  });
+  process.on('uncaughtException', (err) => {
+    client?.logger?.error?.('Uncaught Exception:', err) || log.error('Uncaught Exception:', err);
   });
 
-  // Startup flow: check updates -> dashboard or DB -> login
+  // Loading commands / events - try multiple common patterns so it fits many projects
+  async function tryLoadCommands(clientInstance) {
+    // 1) if your BotClient has loadCommands method
+    if (typeof clientInstance.loadCommands === 'function') {
+      try {
+        await clientInstance.loadCommands();
+        log.info('Commands loaded via client.loadCommands().');
+        return;
+      } catch (err) {
+        log.warn('client.loadCommands() threw an error:', err);
+      }
+    }
+
+    // 2) if you have a commands folder that exports individually
+    const commandsPath = path.resolve(__dirname, 'src', 'commands');
+    if (fs.existsSync(commandsPath)) {
+      const files = fs.readdirSync(commandsPath).filter(f => f.endsWith('.js'));
+      for (const file of files) {
+        try {
+          const cmd = require(path.join(commandsPath, file));
+          // If client has a commands Map, register it
+          if (clientInstance.commands && typeof clientInstance.commands.set === 'function' && cmd.name) {
+            clientInstance.commands.set(cmd.name, cmd);
+          }
+        } catch (err) {
+          log.warn('Failed to load command', file, err);
+        }
+      }
+      log.info('Commands loaded from src/commands (fallback).');
+      return;
+    }
+
+    log.info('No commands loader found or commands folder not present; skipping commands load.');
+  }
+
+  async function tryLoadEvents(clientInstance) {
+    // 1) client has loadEvents method
+    if (typeof clientInstance.loadEvents === 'function') {
+      try {
+        await clientInstance.loadEvents();
+        log.info('Events loaded via client.loadEvents().');
+        return;
+      } catch (err) {
+        log.warn('client.loadEvents() threw an error:', err);
+      }
+    }
+
+    // 2) fallback: read src/events and register files named event
+    const eventsPath = path.resolve(__dirname, 'src', 'events');
+    if (fs.existsSync(eventsPath)) {
+      const files = fs.readdirSync(eventsPath).filter(f => f.endsWith('.js'));
+      for (const file of files) {
+        try {
+          const ev = require(path.join(eventsPath, file));
+          // ev should export: { name: 'ready', execute(client, ...args) { } } or function
+          const eventName = ev.name || path.basename(file, '.js');
+          if (typeof ev === 'function') {
+            clientInstance.on(eventName, ev.bind(null, clientInstance));
+          } else if (ev && typeof ev.execute === 'function') {
+            clientInstance.on(eventName, ev.execute.bind(null, clientInstance));
+          }
+        } catch (err) {
+          log.warn('Failed to load event', file, err);
+        }
+      }
+      log.info('Events loaded from src/events (fallback).');
+      return;
+    }
+
+    log.info('No events loader found or events folder not present; skipping events load.');
+  }
+
+  // Attempt to load commands/events
+  try {
+    await tryLoadCommands(client);
+  } catch (err) {
+    log.warn('Error while trying to load commands:', err);
+  }
+  try {
+    await tryLoadEvents(client);
+  } catch (err) {
+    log.warn('Error while trying to load events:', err);
+  }
+
+  // Try to load event files under src/handlers or src/events, or a single events folder 'src/e...'
+  // (This is intentionally permissive so it fits many projects)
+  try {
+    // If your client expects to watch an events path, call that method too
+    const eventsDir = path.resolve(__dirname, 'src', 'events');
+    if (client.registerEvents && fs.existsSync(eventsDir)) {
+      await client.registerEvents(eventsDir);
+      log.info('client.registerEvents(eventsDir) invoked.');
+    }
+  } catch (err) {
+    // ignore
+  }
+
+  // Optional: Launch dashboard if present (dashboard launcher should export a launch(client) async function)
+  async function tryLaunchDashboard(clientInstance) {
+    const dashboardLauncherPaths = [
+      path.resolve(__dirname, 'dashboard', 'launcher.js'),
+      path.resolve(__dirname, 'dashboard', 'index.js'),
+      path.resolve(__dirname, 'dashboard', 'server.js'),
+      path.resolve(__dirname, 'src', 'dashboard', 'index.js'),
+    ];
+
+    for (const p of dashboardLauncherPaths) {
+      if (fs.existsSync(p)) {
+        try {
+          const launcher = require(p);
+          if (launcher && typeof launcher.launch === 'function') {
+            await launcher.launch(clientInstance);
+            log.info('Dashboard launched via', p);
+            return true;
+          } else if (typeof launcher === 'function') {
+            // some launchers export the function directly
+            await launcher(clientInstance);
+            log.info('Dashboard launched via', p);
+            return true;
+          } else {
+            log.warn('Dashboard file found but no launch function in', p);
+          }
+        } catch (err) {
+          log.warn('Dashboard launcher at', p, 'failed:', err);
+        }
+      }
+    }
+
+    // fallback: try requiring a 'dashboard' package in project root
+    try {
+      const maybe = require('./dashboard');
+      if (maybe && typeof maybe.launch === 'function') {
+        await maybe.launch(clientInstance);
+        log.info('Dashboard launched via ./dashboard export.');
+        return true;
+      }
+    } catch (err) {
+      // ignore
+    }
+
+    log.info('No dashboard detected or launcher failed; skipping dashboard start.');
+    return false;
+  }
 
   try {
-
-    // Optionally check for updates (network)
-
-    await checkForUpdates();
-
-    // If dashboard is enabled in client config, try to launch it
-
-    const hasDashboard = client && client.config && client.config.DASHBOARD && client.config.DASHBOARD.enabled;
-
-    if (hasDashboard) {
-
-      try {
-
-        // Example path - update to match your project
-
-        const dashboardLauncher = require('@root/dashboard/launch');
-
-        if (dashboardLauncher && typeof dashboardLauncher.launch === 'function') {
-
-          client.logger && client.logger.log && client.logger.log('Launching dashboard...');
-
-          await dashboardLauncher.launch(client);
-
-        } else {
-
-          client.logger && client.logger.warn && client.logger.warn('Dashboard launch module not found or invalid.');
-
-        }
-
-      } catch (err) {
-
-        client.logger && client.logger.error && client.logger.error('Failed to launch dashboard', err);
-
-        // continue startup; do not block login for dashboard failure
-
-      }
-
-    } else {
-
-      // Initialize DB (mongoose)
-
-      try {
-
-        await initializeMongoose();
-
-      } catch (err) {
-
-        client.logger && client.logger.error && client.logger.error('Failed to initialize database:', err);
-
-        // It's often fatal if DB is required; choose to exit or continue based on your needs:
-
-        // process.exit(1);
-
-      }
-
-    }
-
-    // Login
-
-    const token = process.env.BOT_TOKEN;
-
-    if (!token) {
-
-      client.logger && client.logger.error && client.logger.error('BOT_TOKEN not set in environment. Exiting.');
-
-      process.exit(1);
-
-    }
-
-    await client.login(token);
-
-    client.logger && client.logger.log && client.logger.log('Bot started successfully.');
-
+    await tryLaunchDashboard(client);
   } catch (err) {
+    log.warn('Error while attempting to launch dashboard (continuing):', err);
+  }
 
-    try {
-
-      client && client.logger && client.logger.error && client.logger.error('Startup error', err);
-
-    } catch (_) {
-
-      console.error('Startup error', err);
-
-    }
-
-    // fatal error
-
+  // Finally, login the bot
+  const token = process.env.BOT_TOKEN || process.env.TOKEN;
+  if (!token) {
+    log.error('No BOT_TOKEN found in environment. Set BOT_TOKEN in .env or in environment variables.');
     process.exit(1);
+  }
 
+  try {
+    if (typeof client.login === 'function') {
+      await client.login(token);
+      log.info('Bot logged in successfully.');
+    } else {
+      log.error('client.login is not a function. Ensure your BotClient extends discord.js Client or provides login(token).');
+    }
+  } catch (err) {
+    log.error('Failed to login:', err);
+    process.exit(1);
   }
 
 })();
